@@ -175,11 +175,53 @@ def launch_worker(repo, name, output):
                             start_new_session=True, close_fds=True)
 
 
+def task_contract(name, branch, worktree):
+    template = Path(__file__).with_name("skills") / "bamberg-task" / "SKILL.md"
+    if not template.is_file():
+        raise Error(f"Contrato da tarefa ausente: {template}")
+    content = template.read_text()
+    if not content.startswith("---\n") or "\n---\n" not in content[4:]:
+        raise Error(f"Frontmatter da skill inválido: {template}")
+    body = content.partition("\n---\n")[2]
+    return body.format(name=name, branch=branch, worktree=worktree).strip()
+
+
+def install_operator_skill():
+    source = Path(__file__).with_name("skills") / "bamberg-orchestrator"
+    if not (source / "SKILL.md").is_file():
+        raise Error(f"Skill de orquestração ausente: {source}")
+    destinations = [Path.home() / ".agents" / "skills" / source.name,
+                    Path.home() / ".claude" / "skills" / source.name]
+    # Check both destinations first to avoid a partial installation on conflict.
+    for destination in destinations:
+        if destination.is_symlink() and destination.resolve() == source.resolve():
+            continue
+        if destination.exists() or destination.is_symlink():
+            raise Error(f"Skill existente em {destination}; instalação cancelada sem sobrescrever.")
+    for destination in destinations:
+        if destination.is_symlink():
+            continue
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        destination.symlink_to(source.resolve(), target_is_directory=True)
+        print(f"Skill instalada: {destination} -> {source.resolve()}")
+
+
+def agent_command(provider, task, contract, worktree):
+    if provider == "claude":
+        return ["claude", "-p", "--permission-mode", "acceptEdits", "--append-system-prompt", contract, task]
+    if provider == "codex":
+        # JSON strings are valid TOML basic strings for this CLI override.
+        return ["codex", "exec", "--sandbox", "workspace-write", "--cd", str(worktree),
+                "-c", "developer_instructions=" + json.dumps(contract), task]
+    raise Error(f"Provedor desconhecido: {provider}")
+
+
 def start(repo, args):
     validate_id(args.name)
     item = get_account(repo, args.account)
     if not shutil.which(item["provider"]):
         raise Error(f"Executável {item['provider']} não encontrado.")
+    task_contract(args.name, f"bamberg/{args.name}", state_dir(repo) / "worktrees" / args.name)
     ensure_state_ignored(repo)
     ensure_ready(repo)
     branch = f"bamberg/{args.name}"
@@ -218,13 +260,8 @@ def worker(repo, name):
     branch = git("symbolic-ref", "--quiet", "--short", "HEAD", cwd=wt)
     if branch != job["branch"] or worktree_map(repo).get("refs/heads/" + branch) != str(wt):
         raise Error("Branch/worktree divergente; execução cancelada.")
-    prompt = (f"Tarefa: {job['task']}\n\nTrabalhe somente nesta worktree ({wt}) e branch ({branch}). "
-              "Não altere outras worktrees, o repositório principal ou configurações de outras contas. "
-              "Não tente fazer commit; deixe as mudanças para revisão.")
-    if item["provider"] == "claude":
-        cmd = ["claude", "-p", "--permission-mode", "acceptEdits", prompt]
-    else:
-        cmd = ["codex", "exec", "--sandbox", "workspace-write", "--cd", str(wt), prompt]
+    contract = task_contract(job["name"], branch, wt)
+    cmd = agent_command(item["provider"], job["task"], contract, wt)
     # The host filesystem is read-only. Only this task's worktree and account
     # profile are writable. Git's shared administrative directory stays read-only.
     wrapped = ["bwrap", "--die-with-parent", "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev",
@@ -540,6 +577,8 @@ def parser():
     hidden = sub.add_parser("_worker", help=argparse.SUPPRESS)
     hidden.add_argument("repo")
     hidden.add_argument("name")
+    skills = sub.add_parser("skills", help="Instalar skills de orquestração para o usuário atual")
+    skills.add_subparsers(dest="action", required=True).add_parser("install")
     return p
 
 
@@ -548,6 +587,9 @@ def main(argv=None):
     try:
         if args.command == "_worker":
             return worker(Path(args.repo), args.name)
+        if args.command == "skills":
+            install_operator_skill()
+            return 0
         repo = root()
         if args.command == "account":
             if args.action == "add":

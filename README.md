@@ -10,6 +10,19 @@ Orquestra tarefas paralelas no Claude Code e no Codex. Cada tarefa recebe uma br
 
 O projeto não instala dependências Python. Para invocar o CLI, use `python3 /caminho/para/bamberg-cli/bamberg` ou coloque o executável `bamberg` no `PATH`.
 
+## Instruções e skills dos agentes
+
+Este repositório inclui [`AGENTS.md`](AGENTS.md) para Codex e [`CLAUDE.md`](CLAUDE.md), que importa as mesmas regras para Claude Code. As skills canônicas ficam em `skills/`; links em `.agents/skills/` e `.claude/skills/` permitem descoberta automática no checkout do CLI.
+
+Esses caminhos seguem a documentação de [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md) e [skills do Codex](https://learn.chatgpt.com/docs/build-skills), além das regras de [memória](https://code.claude.com/docs/en/memory) e [skills do Claude Code](https://code.claude.com/docs/en/skills). `CODEX.md` não é necessário neste projeto: `AGENTS.md` é o arquivo de instruções reconhecido pelo Codex.
+
+- `bamberg-orchestrator`: orienta a divisão, delegação, revisão e entrega ao operador.
+- `bamberg-task`: define os limites de cada agente executor. O CLI injeta seu conteúdo como instrução adicional de sistema no Claude e de desenvolvedor no Codex, com nome, branch e worktree da tarefa. Isso funciona mesmo quando o projeto alvo está em outro repositório.
+
+Para que a skill de orquestração seja descoberta em **qualquer** projeto seu, execute uma vez `bamberg skills install`. O comando cria links em `~/.agents/skills/` e `~/.claude/skills/`, sem substituir skills existentes. A instalação é pessoal e explícita; ela não altera o repositório alvo. Se mover ou remover o checkout do Bamberg CLI, instale novamente a partir do novo caminho.
+
+Instruções Markdown ajudam os agentes a seguir o fluxo. O bloqueio efetivo de escrita em outras worktrees vem do sandbox `bubblewrap`; arquivos de instrução não substituem esse isolamento. Instruções existentes no projeto alvo continuam sendo lidas pelos próprios CLIs.
+
 ## Contas
 
 Use um diretório de perfil exclusivo por conta. O identificador é usado em comandos; `--label` pode ser o email da conta. O CLI não armazena senhas ou tokens no arquivo de configuração. As credenciais permanecem nos diretórios de perfil dos próprios provedores.

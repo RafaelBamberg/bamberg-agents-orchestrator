@@ -89,6 +89,37 @@ class CliTests(unittest.TestCase):
         self.assertEqual(five[0], 21)
         self.assertEqual(week[0], 9)
 
+    def test_task_contract_reaches_both_providers(self):
+        worktree = self.repo / ".bamberg" / "worktrees" / "feature"
+        contract = cli.task_contract("feature", "bamberg/feature", worktree)
+        self.assertIn("bamberg/feature", contract)
+        self.assertIn(str(worktree), contract)
+        self.assertIn("Não execute `bamberg cleanup`", contract)
+        self.assertFalse(contract.startswith("---"))
+        claude = cli.agent_command("claude", "Implementar API", contract, worktree)
+        self.assertEqual(claude[claude.index("--append-system-prompt") + 1], contract)
+        self.assertEqual(claude[-1], "Implementar API")
+        codex = cli.agent_command("codex", "Implementar API", contract, worktree)
+        setting = codex[codex.index("-c") + 1]
+        self.assertEqual(json.loads(setting.split("=", 1)[1]), contract)
+        self.assertEqual(codex[-1], "Implementar API")
+
+    def test_operator_skill_installs_for_both_clis_without_overwrite(self):
+        personal_home = Path(self.temp.name) / "operator"
+        personal_home.mkdir()
+        with patch.object(cli.Path, "home", return_value=personal_home):
+            cli.install_operator_skill()
+            for directory in (".agents", ".claude"):
+                link = personal_home / directory / "skills" / "bamberg-orchestrator"
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(link.resolve(), Path(cli.__file__).with_name("skills") / "bamberg-orchestrator")
+            cli.install_operator_skill()  # Idempotent.
+            conflict = personal_home / ".claude" / "skills" / "bamberg-orchestrator"
+            conflict.unlink()
+            conflict.mkdir()
+            with self.assertRaises(cli.Error):
+                cli.install_operator_skill()
+
     def test_worktree_branch_is_unique_and_base_untouched(self):
         home = self.add_account("alice", "claude")
         from argparse import Namespace
@@ -157,6 +188,22 @@ class CliTests(unittest.TestCase):
         self.assertEqual((self.repo / ".bamberg" / "worktrees" / "first" / "result.txt").read_text(), "result")
         self.assertFalse((other / "foreign").exists())
         self.assertEqual(cli.details(self.repo, "first")["status"], "completed")
+
+    def test_codex_worker_receives_task_contract(self):
+        home = self.add_account("bob", "codex")
+        fake = home / "codex"
+        fake.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\n")
+        fake.chmod(0o755)
+        from argparse import Namespace
+        with patch.dict(os.environ, {"PATH": str(home) + os.pathsep + os.environ["PATH"]}), patch.object(cli, "launch_worker") as launch:
+            launch.return_value.pid = os.getpid()
+            cli.start(self.repo, Namespace(name="codexjob", account="bob", task="Implementar API"))
+            code = cli.worker(self.repo, "codexjob")
+        self.assertEqual(code, 0)
+        args = (self.repo / ".bamberg" / "worktrees" / "codexjob" / "args.txt").read_text()
+        self.assertIn("developer_instructions=", args)
+        self.assertIn("bamberg/codexjob", args)
+        self.assertIn("Implementar API", args)
 
     def test_cleanup_preserves_main_branch_and_task_branch(self):
         worktree = self.registered_task()
