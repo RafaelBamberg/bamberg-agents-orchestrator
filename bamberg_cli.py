@@ -44,6 +44,19 @@ def state_dir(repo):
     return path
 
 
+def ensure_state_ignored(repo):
+    exclude = Path(git("rev-parse", "--git-path", "info/exclude", cwd=repo))
+    if not exclude.is_absolute():
+        exclude = repo / exclude
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    existing = exclude.read_text() if exclude.exists() else ""
+    if ".bamberg/" not in existing.splitlines():
+        with exclude.open("a") as handle:
+            if existing and not existing.endswith("\n"):
+                handle.write("\n")
+            handle.write(".bamberg/\n")
+
+
 @contextlib.contextmanager
 def lock(repo):
     state = state_dir(repo)
@@ -84,6 +97,7 @@ def account_add(repo, args):
     home = Path(args.home).expanduser().resolve()
     if home == repo or home in repo.parents or repo in home.parents:
         raise Error("O diretório da conta precisa ficar fora do repositório.")
+    ensure_state_ignored(repo)
     with lock(repo):
         cfg = config(repo)
         if args.id in cfg["accounts"]:
@@ -166,6 +180,7 @@ def start(repo, args):
     item = get_account(repo, args.account)
     if not shutil.which(item["provider"]):
         raise Error(f"Executável {item['provider']} não encontrado.")
+    ensure_state_ignored(repo)
     ensure_ready(repo)
     branch = f"bamberg/{args.name}"
     worktrees = state_dir(repo) / "worktrees"

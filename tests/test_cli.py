@@ -37,6 +37,14 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(cli.Error):
             cli.account_add(self.repo, Namespace(id="bob", provider="codex", home=str(Path(self.temp.name) / "alice" / "nested"), label=None))
 
+    def test_state_is_ignored_in_target_repository(self):
+        subprocess.run(["git", "-C", str(self.repo), "rm", "-q", ".gitignore"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "remove ignore"], check=True)
+        self.add_account("alice", "claude")
+        self.assertEqual(cli.git("status", "--porcelain", cwd=self.repo), "")
+        exclude = self.repo / ".git" / "info" / "exclude"
+        self.assertIn(".bamberg/", exclude.read_text())
+
     def test_usage_per_account_and_reset_timezone(self):
         c_home = self.add_account("alice", "claude")
         o_home = self.add_account("bob", "codex")

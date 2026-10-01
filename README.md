@@ -36,7 +36,7 @@ bamberg log api
 bamberg stop tests
 ```
 
-As worktrees ficam em `.bamberg/worktrees/` **dentro do repositório**, ignoradas pelo Git, e os logs e metadados em `.bamberg/jobs/`. O CLI não cria worktrees irmãs do repositório. A única criação de diretório fora dele é o perfil indicado explicitamente em `account add --home`. Uma segunda tarefa com o mesmo nome ou branch é recusada. A worktree continua disponível após a conclusão para inspecionar o diff e integrar as alterações; não há remoção automática.
+As worktrees ficam em `.bamberg/worktrees/` **dentro do repositório**, ignoradas pelo Git por uma entrada no `.git/info/exclude` local, e os logs e metadados em `.bamberg/jobs/`. O CLI não cria worktrees irmãs do repositório. A única criação de diretório fora dele é o perfil indicado explicitamente em `account add --home`. Uma segunda tarefa com o mesmo nome ou branch é recusada. A worktree continua disponível após a conclusão para inspecionar o diff e integrar as alterações; não há remoção automática.
 
 ```sh
 git -C .bamberg/worktrees/api diff
