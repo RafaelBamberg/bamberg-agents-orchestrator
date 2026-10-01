@@ -43,6 +43,18 @@ git -C .bamberg/worktrees/api diff
 git -C .bamberg/worktrees/api status
 ```
 
+## Limpeza manual e segura
+
+Depois de revisar e salvar as alterações da tarefa, volte à **raiz da worktree principal** e rode o comando em seu próprio terminal:
+
+```sh
+bamberg cleanup api
+```
+
+O CLI mostra o caminho e exige que você digite `APAGAR api` no terminal. Não existe opção para pular essa confirmação. Um agente iniciado pelo CLI não tem terminal interativo nem permissão de escrita no diretório Git compartilhado; ele não consegue executar a limpeza. Isso é uma proteção contra os agentes orquestrados, não autenticação contra outra pessoa ou processo que já tenha acesso irrestrito à sua conta do sistema. O comando aceita somente tarefas cadastradas e concluídas ou interrompidas. Ele recusa a remoção se a worktree tiver alterações, arquivos novos ou ignorados, se um processo ainda estiver ativo ou se a worktree principal estiver suja. Não usa `--force`.
+
+A limpeza remove apenas a worktree da tarefa. A branch `bamberg/api`, seus commits, o registro da tarefa e o log permanecem. O CLI confere o commit e o estado da worktree principal antes e depois da operação. Para tarefas com alterações ainda sem commit, salve-as na branch da tarefa e revise o resultado antes de executar `cleanup`.
+
 O sandbox protege contra escrita local em outras worktrees, mesmo que uma tarefa peça isso. O CLI desativa hooks do Git ao criar worktrees, pois essa etapa ocorre fora do sandbox. Ele não impede leitura de arquivos acessíveis ao usuário nem chamadas de rede pelos agentes. Scripts ou hooks do repositório executados pelo agente dentro do sandbox também ficam sujeitos ao mesmo limite de escrita. Contas com diretórios de perfil sobrepostos são recusadas.
 
 ## Uso por conta

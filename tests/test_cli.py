@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -30,6 +31,20 @@ class CliTests(unittest.TestCase):
         home = Path(self.temp.name) / name
         cli.account_add(self.repo, Namespace(id=name, provider=provider, home=str(home), label=name + "@example.com"))
         return home
+
+    def registered_task(self, name="feature", status="completed"):
+        cli.ensure_state_ignored(self.repo)
+        worktree = self.repo / ".bamberg" / "worktrees" / name
+        cli.git("worktree", "add", "-b", f"bamberg/{name}", str(worktree), "HEAD", cwd=self.repo)
+        cli.save(cli.job_path(self.repo, name), {"name": name, "account": "test", "provider": "claude",
+                                             "branch": f"bamberg/{name}", "worktree": str(worktree), "status": status})
+        return worktree
+
+    def clean_as_operator(self, name="feature"):
+        with patch.object(cli.Path, "cwd", return_value=self.repo), patch.object(sys.stdin, "isatty", return_value=True), \
+             patch.object(sys.stdout, "isatty", return_value=True), patch.object(cli, "confirm_cleanup") as confirm:
+            cli.cleanup(self.repo, name)
+        confirm.assert_called_once()
 
     def test_accounts_reject_shared_profiles(self):
         self.add_account("alice", "claude")
@@ -142,6 +157,76 @@ class CliTests(unittest.TestCase):
         self.assertEqual((self.repo / ".bamberg" / "worktrees" / "first" / "result.txt").read_text(), "result")
         self.assertFalse((other / "foreign").exists())
         self.assertEqual(cli.details(self.repo, "first")["status"], "completed")
+
+    def test_cleanup_preserves_main_branch_and_task_branch(self):
+        worktree = self.registered_task()
+        (worktree / "README").write_text("task work\n")
+        cli.git("add", "README", cwd=worktree)
+        cli.git("-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "task commit", cwd=worktree)
+        main_head = cli.git("rev-parse", "HEAD", cwd=self.repo)
+        branch_head = cli.git("rev-parse", "bamberg/feature", cwd=self.repo)
+        self.assertNotEqual(main_head, branch_head)
+        self.clean_as_operator()
+        self.assertFalse(worktree.exists())
+        self.assertEqual(cli.git("rev-parse", "HEAD", cwd=self.repo), main_head)
+        self.assertEqual((self.repo / "README").read_text(), "base\n")
+        self.assertEqual(cli.git("rev-parse", "bamberg/feature", cwd=self.repo), branch_head)
+        self.assertEqual(cli.details(self.repo, "feature")["status"], "cleaned")
+
+    def test_cleanup_refuses_dirty_untracked_and_ignored_files(self):
+        worktree = self.registered_task()
+        for relative, content in (("README", "changed"), ("new.txt", "new"), ("secret.env", "secret")):
+            if relative == "secret.env":
+                (worktree / ".gitignore").write_text("secret.env\n")
+                cli.git("add", ".gitignore", cwd=worktree)
+                cli.git("-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "ignore secret", cwd=worktree)
+            path = worktree / relative
+            original = path.read_text() if path.exists() else None
+            path.write_text(content)
+            with self.assertRaises(cli.Error):
+                self.clean_as_operator()
+            self.assertTrue(worktree.exists())
+            self.assertEqual(path.read_text(), content)
+            if original is None:
+                path.unlink()
+            else:
+                path.write_text(original)
+
+    def test_cleanup_refuses_active_job_or_dirty_main(self):
+        worktree = self.registered_task(status="running")
+        with self.assertRaises(cli.Error):
+            self.clean_as_operator()
+        item = cli.details(self.repo, "feature")
+        item["status"] = "completed"
+        cli.save(cli.job_path(self.repo, "feature"), item)
+        (self.repo / "README").write_text("main work\n")
+        with self.assertRaises(cli.Error):
+            self.clean_as_operator()
+        self.assertTrue(worktree.exists())
+        self.assertEqual((self.repo / "README").read_text(), "main work\n")
+
+    def test_cleanup_rejects_noninteractive_and_wrong_worktree(self):
+        worktree = self.registered_task()
+        with patch.object(cli.Path, "cwd", return_value=self.repo), patch.object(sys.stdin, "isatty", return_value=False):
+            with self.assertRaises(cli.Error):
+                cli.cleanup(self.repo, "feature")
+        with patch.object(cli.Path, "cwd", return_value=worktree), patch.object(sys.stdin, "isatty", return_value=True), \
+             patch.object(sys.stdout, "isatty", return_value=True):
+            with self.assertRaises(cli.Error):
+                cli.cleanup(self.repo, "feature")
+        self.assertTrue(worktree.exists())
+
+    def test_cleanup_cancelled_confirmation_keeps_everything(self):
+        worktree = self.registered_task()
+        main_head = cli.git("rev-parse", "HEAD", cwd=self.repo)
+        with patch.object(cli.Path, "cwd", return_value=self.repo), patch.object(sys.stdin, "isatty", return_value=True), \
+             patch.object(sys.stdout, "isatty", return_value=True), \
+             patch.object(cli, "confirm_cleanup", side_effect=cli.Error("cancelled")):
+            with self.assertRaises(cli.Error):
+                cli.cleanup(self.repo, "feature")
+        self.assertTrue(worktree.exists())
+        self.assertEqual(cli.git("rev-parse", "HEAD", cwd=self.repo), main_head)
+        self.assertEqual(cli.details(self.repo, "feature")["status"], "completed")
 
 
 if __name__ == "__main__":

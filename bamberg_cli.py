@@ -302,6 +302,97 @@ def show_log(repo, name):
         print(path.read_text(errors="replace")[-20000:])
 
 
+def confirm_cleanup(name, branch, worktree):
+    # Workers have no terminal, and there is deliberately no --yes option.
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise Error("Limpeza exige um terminal interativo usado por você.")
+    phrase = f"APAGAR {name}"
+    try:
+        with open("/dev/tty", "r+") as terminal:
+            terminal.write(f"Remover worktree {worktree}?\nA branch {branch} e os logs serão preservados.\nDigite {phrase} para confirmar: ")
+            terminal.flush()
+            answer = terminal.readline().strip()
+    except OSError as exc:
+        raise Error("Não foi possível ler a confirmação do terminal.") from exc
+    if answer != phrase:
+        raise Error("Limpeza cancelada; confirmação incorreta.")
+
+
+def process_alive(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    # A zombie has exited; Linux may retain its PID until its parent reaps it.
+    try:
+        status = Path(f"/proc/{pid}/stat").read_text()
+        if status.rsplit(")", 1)[1].split()[0] == "Z":
+            return False
+    except FileNotFoundError:
+        return False
+    except (OSError, IndexError):
+        pass
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def cleanup(repo, name):
+    validate_id(name)
+    if Path.cwd().resolve() != repo or Path(git("rev-parse", "--show-toplevel", cwd=Path.cwd())).resolve() != repo:
+        raise Error("Execute cleanup na raiz da worktree principal.")
+    # Check this before reading task data, so even a failed attempt by a worker
+    # or a script cannot disclose the interactive confirmation path.
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise Error("Limpeza exige um terminal interativo usado por você.")
+    expected = state_dir(repo) / "worktrees" / name
+    with lock(repo):
+        item = details(repo, name)
+        branch = f"bamberg/{name}"
+        if item["branch"] != branch or item["worktree"] != str(expected):
+            raise Error("Metadados da tarefa divergentes; limpeza cancelada.")
+        if expected.is_symlink() or not expected.is_dir():
+            raise Error("Worktree ausente ou alterada; limpeza cancelada.")
+        if item["status"] not in ("completed", "failed", "stopped"):
+            raise Error("A tarefa ainda não terminou. Aguarde ou use 'bamberg stop'.")
+        if process_alive(item.get("pid")) or process_alive(item.get("child_pid")):
+            raise Error("Ainda há processo da tarefa ativo; limpeza cancelada.")
+        mapping = worktree_map(repo)
+        if mapping.get("refs/heads/" + branch) != str(expected):
+            raise Error("A branch não está vinculada à worktree esperada.")
+        if git("symbolic-ref", "--quiet", "--short", "HEAD", cwd=expected) != branch:
+            raise Error("Branch da worktree divergente; limpeza cancelada.")
+        main_branch = git("symbolic-ref", "--quiet", "--short", "HEAD", cwd=repo)
+        if branch == main_branch:
+            raise Error("A branch principal nunca pode ser removida por cleanup.")
+        main_head = git("rev-parse", "HEAD", cwd=repo)
+        main_status = git("status", "--porcelain", "--untracked-files=all", cwd=repo)
+        if main_status:
+            raise Error("A worktree principal precisa estar limpa antes da limpeza.")
+        # --ignored catches files Git might otherwise silently delete, such as
+        # build artifacts and .env files. No force-removal option is exposed.
+        dirty = git("status", "--porcelain", "--untracked-files=all", "--ignored=matching", cwd=expected)
+        if dirty:
+            raise Error("A worktree contém alterações ou arquivos extras (inclusive ignorados). Revise e salve esses dados antes de limpar.\n" + dirty[:1000])
+        confirm_cleanup(name, branch, expected)
+        # Recheck after the human confirmation in case files changed meanwhile.
+        if git("status", "--porcelain", "--untracked-files=all", "--ignored=matching", cwd=expected):
+            raise Error("A worktree mudou durante a confirmação; limpeza cancelada.")
+        if git("rev-parse", "HEAD", cwd=repo) != main_head or git("status", "--porcelain", "--untracked-files=all", cwd=repo) != main_status:
+            raise Error("A branch principal mudou durante a confirmação; limpeza cancelada.")
+        git("-c", "core.hooksPath=/dev/null", "worktree", "remove", str(expected), cwd=repo)
+        item["status"] = "cleaned"
+        item["cleaned"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        save(job_path(repo, name), item)
+        if git("rev-parse", "HEAD", cwd=repo) != main_head or git("status", "--porcelain", "--untracked-files=all", cwd=repo) != main_status:
+            raise Error("A worktree principal mudou durante a limpeza; verifique o repositório imediatamente.")
+        if not git("show-ref", "--verify", f"refs/heads/{branch}", cwd=repo, check=False):
+            raise Error("A branch da tarefa não foi encontrada após a limpeza; verifique o repositório.")
+    print(f"Worktree {name} removida. Branch {branch} e logs preservados.")
+
+
 def request_json(url, token, headers=None):
     req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "User-Agent": "bamberg-cli/0.1", **(headers or {})})
     with urllib.request.urlopen(req, timeout=12) as response:
@@ -442,6 +533,8 @@ def parser():
     for action in ("log", "stop"):
         sp = sub.add_parser(action)
         sp.add_argument("name")
+    clean = sub.add_parser("cleanup", help="Remover manualmente uma worktree concluída e limpa")
+    clean.add_argument("name")
     u = sub.add_parser("usage", aliases=["/usage"])
     u.add_argument("--timezone", default="America/Sao_Paulo")
     hidden = sub.add_parser("_worker", help=argparse.SUPPRESS)
@@ -472,6 +565,8 @@ def main(argv=None):
             show_log(repo, args.name)
         elif args.command == "stop":
             stop(repo, args.name)
+        elif args.command == "cleanup":
+            cleanup(repo, args.name)
         elif args.command in ("usage", "/usage"):
             usage(repo, args)
         return 0
