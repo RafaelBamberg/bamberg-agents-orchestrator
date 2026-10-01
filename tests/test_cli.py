@@ -81,6 +81,25 @@ class CliTests(unittest.TestCase):
             with self.assertRaises(cli.Error):
                 cli.start(self.repo, args)
 
+    def test_worktree_creation_skips_host_checkout_hooks(self):
+        self.add_account("alice", "claude")
+        marker = Path(self.temp.name) / "unexpected-sibling"
+        hook = self.repo / ".git" / "hooks" / "post-checkout"
+        hook.write_text("#!/bin/sh\nmkdir " + str(marker) + "\n")
+        hook.chmod(0o755)
+        from argparse import Namespace
+        with patch.object(cli.shutil, "which", return_value="/usr/bin/true"), patch.object(cli, "launch_worker") as launch:
+            launch.return_value.pid = 12345
+            cli.start(self.repo, Namespace(name="safe", account="alice", task="Edit README"))
+        self.assertFalse(marker.exists())
+
+    def test_state_directory_cannot_be_symlink(self):
+        target = Path(self.temp.name) / "outside"
+        target.mkdir()
+        (self.repo / ".bamberg").symlink_to(target)
+        with self.assertRaises(cli.Error):
+            cli.state_dir(self.repo)
+
     def test_bwrap_blocks_cross_worktree_writes(self):
         first = self.repo / ".bamberg" / "worktrees" / "one"
         second = self.repo / ".bamberg" / "worktrees" / "two"

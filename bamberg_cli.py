@@ -38,7 +38,10 @@ def root():
 
 
 def state_dir(repo):
-    return repo / STATE
+    path = repo / STATE
+    if path.is_symlink():
+        raise Error("O diretório .bamberg não pode ser um link simbólico.")
+    return path
 
 
 @contextlib.contextmanager
@@ -165,15 +168,19 @@ def start(repo, args):
         raise Error(f"Executável {item['provider']} não encontrado.")
     ensure_ready(repo)
     branch = f"bamberg/{args.name}"
-    path = state_dir(repo) / "worktrees" / args.name
+    worktrees = state_dir(repo) / "worktrees"
+    if worktrees.is_symlink():
+        raise Error("O diretório .bamberg/worktrees não pode ser um link simbólico.")
+    path = worktrees / args.name
     with lock(repo):
-        if job_path(repo, args.name).exists() or path.exists():
+        if job_path(repo, args.name).exists() or path.exists() or path.is_symlink():
             raise Error("Esta tarefa já existe; escolha outro nome.")
         if git("show-ref", "--verify", f"refs/heads/{branch}", cwd=repo, check=False):
             raise Error("A branch da tarefa já existe.")
         if f"refs/heads/{branch}" in worktree_map(repo):
             raise Error("A branch já está ocupada por outra worktree.")
-        git("worktree", "add", "-b", branch, str(path), "HEAD", cwd=repo)
+        # Checkout hooks run on the host, before the agent enters bubblewrap.
+        git("-c", "core.hooksPath=/dev/null", "worktree", "add", "-b", branch, str(path), "HEAD", cwd=repo)
         job = {"name": args.name, "account": args.account, "provider": item["provider"], "branch": branch,
                "worktree": str(path), "task": args.task, "status": "starting", "created": dt.datetime.now(dt.timezone.utc).isoformat()}
         save(job_path(repo, args.name), job)

@@ -36,14 +36,14 @@ bamberg log api
 bamberg stop tests
 ```
 
-As worktrees ficam em `.bamberg/worktrees/`, ignoradas pelo Git, e os logs e metadados em `.bamberg/jobs/`. Uma segunda tarefa com o mesmo nome ou branch é recusada. A worktree continua disponível após a conclusão para inspecionar o diff e integrar as alterações; não há remoção automática.
+As worktrees ficam em `.bamberg/worktrees/` **dentro do repositório**, ignoradas pelo Git, e os logs e metadados em `.bamberg/jobs/`. O CLI não cria worktrees irmãs do repositório. A única criação de diretório fora dele é o perfil indicado explicitamente em `account add --home`. Uma segunda tarefa com o mesmo nome ou branch é recusada. A worktree continua disponível após a conclusão para inspecionar o diff e integrar as alterações; não há remoção automática.
 
 ```sh
 git -C .bamberg/worktrees/api diff
 git -C .bamberg/worktrees/api status
 ```
 
-O sandbox protege contra escrita em outras worktrees, mesmo que uma tarefa peça isso. Ele não impede leitura de arquivos acessíveis ao usuário nem chamadas de rede pelos agentes. Scripts ou hooks do repositório executados no sandbox também ficam sujeitos ao mesmo limite de escrita. Contas com diretórios de perfil sobrepostos são recusadas.
+O sandbox protege contra escrita local em outras worktrees, mesmo que uma tarefa peça isso. O CLI desativa hooks do Git ao criar worktrees, pois essa etapa ocorre fora do sandbox. Ele não impede leitura de arquivos acessíveis ao usuário nem chamadas de rede pelos agentes. Scripts ou hooks do repositório executados pelo agente dentro do sandbox também ficam sujeitos ao mesmo limite de escrita. Contas com diretórios de perfil sobrepostos são recusadas.
 
 ## Uso por conta
 
