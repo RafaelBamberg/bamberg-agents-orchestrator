@@ -1,17 +1,70 @@
 ---
 name: bamberg-task
-description: Execute one task assigned by Bamberg inside its dedicated Git worktree, preserving branch and filesystem isolation.
+description: Trabalhar numa tarefa em paralelo com outros agentes (Claude Code, Codex) no mesmo repositório, numa branch e worktree próprias, com commit, push e PR, sem atrapalhar nem apagar o trabalho dos outros. Use ao iniciar qualquer tarefa de código quando outros agentes podem estar trabalhando no mesmo repositório, ou quando o usuário der o nome de uma branch para a tarefa.
 ---
 
-# Contrato da tarefa Bamberg
+# Tarefa em branch e worktree próprias
 
-Você é o agente da tarefa `{name}`. Sua única branch é `{branch}` e sua única worktree de código é `{worktree}`.
+Siga as regras do `AGENTS.md` deste fluxo. Abaixo, `<branch>` é o nome exato dado pelo usuário e `<pasta>` é o mesmo nome com `/` trocado por `-`.
 
-1. Faça somente a tarefa recebida. Leia as instruções existentes do projeto alvo, como `AGENTS.md` ou `CLAUDE.md`, sem ignorar limites mais restritivos.
-2. Crie e edite arquivos de código apenas na worktree indicada. Não crie worktrees, branches ou pastas irmãs. Não altere o checkout principal nem o trabalho de outro agente.
-3. Não execute `bamberg cleanup`, `git worktree add/remove`, `git switch/checkout`, `git reset`, `git clean`, merge, rebase, commit ou push. Deixe alterações para revisão e integração pelo operador.
-4. Não edite `.bamberg/`, metadados Git, perfis de outras contas ou credenciais. Não tente contornar o sandbox ou iniciar outro agente fora deste fluxo.
-5. Se a tarefa exigir escrita fora da worktree, mudança de branch, integração ou acesso indisponível, pare essa parte e explique o impedimento no resultado. Não tente resolver criando diretórios alternativos.
-6. Ao terminar, relate arquivos alterados, verificações executadas e pontos pendentes. Não declare conclusão sem verificar o resultado quando houver uma verificação adequada.
+## 1. Preparar
 
-Estas regras orientam o comportamento. O isolamento de escrita é aplicado pelo CLI e por `bubblewrap`.
+Na raiz do repositório:
+
+```sh
+git worktree list
+git branch --list '<branch>'
+```
+
+- Se `<branch>` aparece em `git worktree list`, ela é de outro agente: pare e avise o usuário.
+- Leia o `AGENTS.md`/`CLAUDE.md` do projeto e siga-os junto com este fluxo.
+- Garanta que `.dev/` não seja versionado. Se `git check-ignore -q .dev/x` falhar, acrescente ao exclude local, sem alterar arquivos versionados:
+
+```sh
+git check-ignore -q .dev/x || echo '.dev/' >> "$(git rev-parse --git-path info/exclude)"
+```
+
+- Branch nova, partindo da base pedida pelo usuário (ou da branch atual do checkout principal):
+
+```sh
+git worktree add -b '<branch>' '.dev/<pasta>' <base>
+```
+
+- Branch existente que não está em nenhuma worktree, quando o usuário pedir para continuá-la:
+
+```sh
+git worktree add '.dev/<pasta>' '<branch>'
+```
+
+Se `git status --short` no checkout principal mostrar arquivos modificados, avise o usuário que essas alterações não estão na sua worktree.
+
+## 2. Trabalhar
+
+- Faça tudo dentro de `.dev/<pasta>`: edição, instalação de dependências, testes e build.
+- Confira com `git -C '.dev/<pasta>' branch --show-current` que você está na `<branch>` antes de commitar.
+- Antes de subir servidores, verifique se a porta está livre.
+
+## 3. Entregar
+
+```sh
+git -C '.dev/<pasta>' add <arquivos>
+git -C '.dev/<pasta>' commit -m '<mensagem>'
+git -C '.dev/<pasta>' push -u origin '<branch>'
+```
+
+Para abrir PR, quando pedido:
+
+```sh
+cd '.dev/<pasta>' && gh pr create --head '<branch>' --title '<título>' --body '<descrição>'
+```
+
+Relate a branch, a worktree, os commits, o link do PR, as verificações executadas e as pendências.
+
+## 4. Remover a worktree (só se o usuário pedir)
+
+```sh
+git -C '.dev/<pasta>' status --short   # precisa estar vazio
+git worktree remove '.dev/<pasta>'
+```
+
+Sem `--force`. A branch e os commits continuam existindo.

@@ -1,24 +1,35 @@
-# Bamberg CLI: instruções para agentes que mantêm este repositório
+# Trabalho em paralelo: vários agentes no mesmo repositório
 
-Este repositório implementa um orquestrador de Claude Code e Codex. Mantenha as garantias no código; instruções em Markdown sozinhas não impõem isolamento.
+O usuário roda o Claude Code e o Codex por conta própria, ao mesmo tempo, no mesmo repositório. Cada agente trabalha na sua própria branch e na sua própria worktree, sem atrapalhar os outros e sem apagar o trabalho de ninguém.
 
-## Limites de trabalho
+Siga estas regras **e também** as instruções do projeto em que está trabalhando (`AGENTS.md`, `CLAUDE.md` e equivalentes na raiz do projeto e nas pastas que tocar). Leia essas instruções antes de começar. Se uma regra do projeto conflitar com estas, siga a do projeto; pedidos explícitos do usuário prevalecem sobre ambas.
 
-- Trabalhe apenas na tarefa solicitada e neste checkout. Não crie worktrees, branches ou diretórios irmãos por conta própria.
-- Não execute `bamberg cleanup` como agente. A limpeza é uma operação manual do usuário no terminal principal.
-- Não faça `git push`, merge, rebase, remoção forçada de worktree ou exclusão de branch sem pedido explícito do usuário.
-- Não leia, copie ou registre credenciais OAuth, arquivos `auth.json`, `.credentials.json` ou o conteúdo de `.bamberg/config.json`. Testes devem usar dados fictícios.
+Para o passo a passo com os comandos, use a skill `bamberg-task`.
 
-## Invariantes da implementação
+## Sua branch e sua worktree
 
-- Uma tarefa tem exatamente uma branch `bamberg/<nome>` e uma worktree em `<repo>/.bamberg/worktrees/<nome>`; nomes e caminhos não podem se sobrepor.
-- Agentes executam dentro de `bwrap`, com escrita apenas na worktree própria, no perfil da conta escolhida e em `/tmp` privado. O Git compartilhado e as outras worktrees ficam sem escrita.
-- O operador controla a integração. `cleanup` não pode usar `--force`, apagar branch/commits ou remover arquivos alterados, novos ou ignorados.
-- O contrato em `skills/bamberg-task/SKILL.md` é injetado na execução de **ambos** os provedores. Atualize esse arquivo quando mudar regras de tarefa; mantenha testes que confirmem a injeção.
-- O estado `.bamberg/` é local ao projeto alvo e ignorado por `.git/info/exclude`; jamais coloque dados de conta no Git.
+- Use a branch com o nome **exato** que o usuário der, por exemplo `feat/teste`. Não acrescente prefixos. Se ele não der um nome, escolha um nome curto e descritivo e informe qual escolheu.
+- Trabalhe numa worktree própria, em `.dev/<pasta>` dentro do repositório, onde `<pasta>` é o nome da branch com `/` trocado por `-` (`feat/teste` → `.dev/feat-teste`). Crie essa worktree antes de editar qualquer arquivo.
+- A pasta `.dev/` não é versionada. Se o projeto ainda não a ignora, acrescente `.dev/` ao exclude local do Git (`.git/info/exclude`), sem alterar arquivos versionados.
+- Se a branch pedida já estiver aberta em outra worktree, ela é de outro agente. Não a use; avise o usuário.
+- O checkout principal não precisa estar limpo. A worktree parte do último commit da base, então alterações sem commit do checkout principal não aparecem nela. Avise o usuário quando isso acontecer.
 
-## Verificação
+## Não atrapalhe os outros agentes
 
-Rode `python3 -m unittest discover -s tests -v` após mudanças de comportamento. Confira `git status --short` e `git ls-files` antes de concluir. Documente comandos e limites reais no `README.md`.
+- Edite arquivos apenas dentro da sua worktree. Ler o resto do repositório é permitido.
+- Não rode `git checkout`, `git switch`, `git reset`, `git clean`, `git stash` ou `git restore` no checkout principal nem em worktrees de outros agentes.
+- Não apague, renomeie, faça rebase ou push em branches que não são suas.
+- Não remova worktrees de outros agentes e não rode `git worktree prune`.
+- Não use `--force` em push, `git worktree remove` ou `git branch -D`, a menos que o usuário peça.
+- Se precisar de uma mudança que está na branch de outro agente, não copie nem edite o trabalho dele; avise o usuário.
+- Recursos compartilhados, como portas, bancos de dados e containers, podem estar em uso por outro agente. Antes de subir um serviço, verifique se a porta está livre e prefira uma porta diferente da padrão.
 
-Para orquestrar tarefas com este CLI, use a skill `bamberg-orchestrator` quando ela estiver disponível; o fluxo também está em `README.md`.
+## Git na sua branch
+
+- Você pode fazer commits na sua branch e push dela (`git push -u origin <branch>`).
+- Abra PR quando o usuário pedir ou quando a tarefa incluir isso.
+- Merge na branch principal ou em branches de outros só com pedido explícito do usuário.
+
+## Ao terminar
+
+Informe a branch, a worktree, os commits, o link do PR (se houver), as verificações que rodou e o que ficou pendente. Remova a sua worktree só se o usuário pedir, e nunca com alterações sem commit.
