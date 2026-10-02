@@ -1,4 +1,4 @@
-# bamberg-agent-instructions
+# bamberg-agents-orchestrator
 
 Instruções para o Claude Code e o Codex trabalharem ao mesmo tempo no mesmo repositório, cada instância na sua branch, sem atrapalhar nem apagar o trabalho das outras. Vale também para várias instâncias do mesmo agente: por exemplo, o Claude em três terminais, cada um com uma tarefa diferente. Estes arquivos dizem como eles devem se comportar.
 
@@ -24,7 +24,7 @@ Cada instância (de qualquer agente) recebe do usuário o nome de uma branch, po
 As regras valem só dentro de `development/`:
 
 - O Claude Code lê os `CLAUDE.md` das pastas acima de onde é aberto, então carrega o `CLAUDE.md` deste repositório.
-- O Codex só lê `AGENTS.md` dentro do repositório do projeto. Por isso, `~/.codex/AGENTS.md` o instrui a seguir `/home/user/bamberg-cli/AGENTS.md` quando estiver dentro de `development/`.
+- O Codex só lê `AGENTS.md` dentro do repositório do projeto. Por isso, `~/.codex/AGENTS.md` o instrui a seguir `/home/user/bamberg-agents-orchestrator/AGENTS.md` quando estiver dentro de `development/`.
 - A skill está ligada em `~/.claude/skills/bamberg-task` e `~/.agents/skills/bamberg-task`.
 
 Os dois agentes também seguem o `AGENTS.md`/`CLAUDE.md` do próprio projeto. Nenhum arquivo do projeto é alterado por este fluxo. Se este checkout mudar de lugar, atualize os caminhos acima.
