@@ -17,7 +17,7 @@ development/fechalead-dev/
     └── fix-login/
 ```
 
-Cada instância (de qualquer agente) recebe do usuário o nome de uma branch, por exemplo `feat/teste`, e trabalha em `.fechalead-tmp/feat-teste`. Ela faz commit e push só da própria branch, sempre abre um PR ao terminar (com o que foi feito e `by: Claude Code` ou `by: Codex`) e sobe os ajustes que você pedir para esse mesmo PR. Não faz merge sem você pedir e nunca sobe direto para a `main`. Não mexe no checkout principal nem em worktrees ou branches de outras instâncias, mesmo que sejam do mesmo agente, e não usa `--force`. Depois do desenvolvimento, você limpa a pasta `.<projeto>-tmp`.
+Cada instância (de qualquer agente) recebe do usuário o nome de uma branch, por exemplo `feat/teste` (ou cria um a partir da demanda, como `fix/card-adjustment-issue-57`), e trabalha em `.fechalead-tmp/feat-teste`. Ela faz commits semânticos (`fix: ...`, `feat: ...`) e push só da própria branch, sempre abre um PR ao terminar (com o que foi feito e `by: Claude Code` ou `by: Codex`) e sobe os ajustes que você pedir para esse mesmo PR. Não faz merge sem você pedir e nunca sobe direto para a `main`. Não mexe no checkout principal nem em worktrees ou branches de outras instâncias, mesmo que sejam do mesmo agente, e não usa `--force`. Depois do desenvolvimento, você limpa a pasta `.<projeto>-tmp`.
 
 ## Como as regras chegam aos agentes
 

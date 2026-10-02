@@ -5,7 +5,7 @@ description: Trabalhar numa tarefa em paralelo com outros agentes (Claude Code, 
 
 # Tarefa em branch e worktree próprias
 
-Este fluxo cobre só branch, worktree e convivência com outros agentes. Outro agente é qualquer outra instância, inclusive outra sessão do Claude Code ou do Codex igual a você; só são suas a branch e a worktree que você criou nesta sessão ou que o usuário mandou usar. Verificações e mensagens de commit seguem as instruções do projeto. Não faça merge (`git merge`, `gh pr merge` ou pelo GitHub) a menos que o usuário peça explicitamente, e nunca suba nada direto para a `main`. Abaixo, `<branch>` é o nome exato dado pelo usuário, `<pasta>` é o mesmo nome com `/` trocado por `-` e `<projeto>` é o nome da pasta do checkout (em `development/fechalead-dev/fechalead`, é `fechalead`). Os comandos rodam a partir do checkout.
+Este fluxo cobre só branch, worktree e convivência com outros agentes. Outro agente é qualquer outra instância, inclusive outra sessão do Claude Code ou do Codex igual a você; só são suas a branch e a worktree que você criou nesta sessão ou que o usuário mandou usar. Verificações seguem as instruções do projeto. Mensagens de commit são semânticas (`fix: ...`, `feat: ...`, `chore: ...`). Não faça merge (`git merge`, `gh pr merge` ou pelo GitHub) a menos que o usuário peça explicitamente, e nunca suba nada direto para a `main`. Abaixo, `<branch>` é o nome exato dado pelo usuário ou, se ele não der, um nome criado a partir da demanda com prefixo semântico e o número da issue, se houver ("issue 57 - Problemas com o cartão" → `fix/card-adjustment-issue-57`), `<pasta>` é o mesmo nome com `/` trocado por `-` e `<projeto>` é o nome da pasta do checkout (em `development/fechalead-dev/fechalead`, é `fechalead`). Os comandos rodam a partir do checkout.
 
 ## 1. Preparar
 
@@ -43,7 +43,7 @@ Se `git status --short` no checkout principal mostrar arquivos modificados, avis
 
 ```sh
 git -C '../.<projeto>-tmp/<pasta>' add <arquivos>
-git -C '../.<projeto>-tmp/<pasta>' commit -m '<mensagem>'
+git -C '../.<projeto>-tmp/<pasta>' commit -m '<tipo>: <mensagem>'
 git -C '../.<projeto>-tmp/<pasta>' push -u origin '<branch>'
 ```
 
@@ -63,7 +63,7 @@ Faça commit e push do ajuste na mesma branch; o PR aberto é atualizado sozinho
 
 ```sh
 git -C '../.<projeto>-tmp/<pasta>' add <arquivos>
-git -C '../.<projeto>-tmp/<pasta>' commit -m '<mensagem>'
+git -C '../.<projeto>-tmp/<pasta>' commit -m '<tipo>: <mensagem>'
 git -C '../.<projeto>-tmp/<pasta>' push
 ```
 
