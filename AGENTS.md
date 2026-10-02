@@ -1,17 +1,22 @@
 # Trabalho em paralelo: vários agentes no mesmo repositório
 
-O usuário roda o Claude Code e o Codex por conta própria, ao mesmo tempo, no mesmo repositório. Cada agente trabalha na sua própria branch e na sua própria worktree, sem atrapalhar os outros e sem apagar o trabalho de ninguém.
+O usuário roda o Claude Code e o Codex por conta própria, ao mesmo tempo, no mesmo repositório, e pode abrir várias instâncias do mesmo agente, por exemplo o Claude em três terminais, cada um com uma tarefa diferente. Cada instância é um agente separado: trabalha na sua própria branch e na sua própria worktree, em paralelo, sem atrapalhar as outras e sem apagar o trabalho de ninguém.
 
-Siga estas regras **e também** as instruções do projeto em que está trabalhando (`AGENTS.md`, `CLAUDE.md` e equivalentes na raiz do projeto e nas pastas que tocar). Leia essas instruções antes de começar. Se uma regra do projeto conflitar com estas, siga a do projeto; pedidos explícitos do usuário prevalecem sobre ambas.
+Nestas regras, "outro agente" é qualquer outra instância, inclusive outra sessão do Claude Code ou do Codex igual a você. Uma branch ou worktree é sua apenas se foi você, nesta sessão, quem a criou, ou se o usuário mandou você usá-la; não é sua só porque foi criada pelo mesmo tipo de agente.
+
+Estas regras tratam **apenas** do trabalho em paralelo: branch, worktree, convivência com os outros agentes e entrega por PR. Para todo o resto (código, testes, mensagens de commit, estilo), valem as instruções do próprio projeto (`AGENTS.md`, `CLAUDE.md`), que você segue junto com estas. Em conflito, vale a do projeto e um pedido explícito do usuário prevalece sobre ambas, exceto que as regras da seção "Git na sua branch" valem mesmo contra as instruções do projeto.
+
+Não copie estas regras para o `AGENTS.md`, o `CLAUDE.md` ou outro arquivo do projeto, nem altere esses arquivos por causa deste fluxo.
 
 Para o passo a passo com os comandos, use a skill `bamberg-task`.
 
 ## Sua branch e sua worktree
 
 - Use a branch com o nome **exato** que o usuário der, por exemplo `feat/teste`. Não acrescente prefixos. Se ele não der um nome, escolha um nome curto e descritivo e informe qual escolheu.
-- Trabalhe numa worktree própria, em `.dev/<pasta>` dentro do repositório, onde `<pasta>` é o nome da branch com `/` trocado por `-` (`feat/teste` → `.dev/feat-teste`). Crie essa worktree antes de editar qualquer arquivo.
-- A pasta `.dev/` não é versionada. Se o projeto ainda não a ignora, acrescente `.dev/` ao exclude local do Git (`.git/info/exclude`), sem alterar arquivos versionados.
-- Se a branch pedida já estiver aberta em outra worktree, ela é de outro agente. Não a use; avise o usuário.
+- Os projetos ficam em `development/<projeto>-dev/<projeto>`, e o usuário abre os agentes nesse checkout. Trabalhe numa worktree própria em `development/<projeto>-dev/.<projeto>-tmp/<pasta>`, ou seja, `../.<projeto>-tmp/<pasta>` a partir do checkout, onde `<pasta>` é o nome da branch com `/` trocado por `-`. Exemplo: em `development/fechalead-dev/fechalead`, a branch `feat/teste` fica em `development/fechalead-dev/.fechalead-tmp/feat-teste`. Crie essa worktree antes de editar qualquer arquivo.
+- A pasta `.<projeto>-tmp` fica fora do repositório do projeto e é limpa pelo usuário depois do desenvolvimento. Não a crie em outro lugar nem altere o `.gitignore` do projeto por causa dela.
+- Se a branch já estiver aberta em outra worktree, ou se a pasta da worktree já existir, ela é de outro agente. Não a use. Se o nome foi dado pelo usuário, avise-o; se foi você quem escolheu, escolha outro nome.
+- Se `git worktree add` falhar porque a branch ou a pasta já existe, outro agente pode tê-la criado no mesmo instante. Trate como ocupada, como no item acima, e não force.
 - O checkout principal não precisa estar limpo. A worktree parte do último commit da base, então alterações sem commit do checkout principal não aparecem nela. Avise o usuário quando isso acontecer.
 
 ## Não atrapalhe os outros agentes
@@ -26,10 +31,13 @@ Para o passo a passo com os comandos, use a skill `bamberg-task`.
 
 ## Git na sua branch
 
-- Você pode fazer commits na sua branch e push dela (`git push -u origin <branch>`).
-- Abra PR quando o usuário pedir ou quando a tarefa incluir isso.
-- Merge na branch principal ou em branches de outros só com pedido explícito do usuário.
+Estas regras valem mesmo que as instruções do projeto digam outra coisa.
+
+- Não faça merge (`git merge`, `gh pr merge` ou pela interface do GitHub), a menos que o usuário peça explicitamente.
+- Nunca suba nada direto para a `main`, em hipótese alguma. Faça commit e push apenas da sua branch (`git push -u origin <branch>`).
+- Ao terminar a tarefa, sempre abra um pull request da sua branch. A descrição do PR deve dizer o que foi feito e terminar com `by: Claude Code` ou `by: Codex`, conforme o agente que você é.
+- Se o usuário pedir ajustes, faça commit do ajuste e push para a mesma branch, para que ele entre no PR em que você está trabalhando. Só não suba se o usuário pedir explicitamente para não subir.
 
 ## Ao terminar
 
-Informe a branch, a worktree, os commits, o link do PR (se houver), as verificações que rodou e o que ficou pendente. Remova a sua worktree só se o usuário pedir, e nunca com alterações sem commit.
+Informe a branch, a worktree e o link do PR. Remova a sua worktree só se o usuário pedir, e nunca com alterações sem commit.

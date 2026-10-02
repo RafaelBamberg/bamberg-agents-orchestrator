@@ -1,22 +1,32 @@
-# Bamberg
+# bamberg-agent-instructions
 
-Instruções para o Claude Code e o Codex trabalharem ao mesmo tempo no mesmo repositório, cada um na sua branch, sem atrapalhar nem apagar o trabalho do outro. Estes arquivos dizem como eles devem se comportar.
+Instruções para o Claude Code e o Codex trabalharem ao mesmo tempo no mesmo repositório, cada instância na sua branch, sem atrapalhar nem apagar o trabalho das outras. Vale também para várias instâncias do mesmo agente: por exemplo, o Claude em três terminais, cada um com uma tarefa diferente. Estes arquivos dizem como eles devem se comportar.
 
 - [`AGENTS.md`](AGENTS.md): as regras. O Codex lê `AGENTS.md`; o Claude Code lê `CLAUDE.md`, que importa o mesmo arquivo.
 - [`skills/bamberg-task/SKILL.md`](skills/bamberg-task/SKILL.md): o passo a passo com os comandos Git (worktree, commit, push, PR). Fica disponível em `.claude/skills/` e `.agents/skills/`.
 
-## Como funciona
+## Estrutura
 
-Cada agente recebe do usuário o nome de uma branch, por exemplo `feat/teste`, e trabalha numa worktree própria em `.dev/feat-teste`. A pasta `.dev/` não é versionada. Ele faz commit e push da própria branch e abre PR quando pedido. Não mexe no checkout principal, em worktrees ou branches de outros agentes, e não usa `--force`.
+Os projetos ficam em `development/`, que não é versionada:
 
-## Usar em outro projeto
+```
+development/fechalead-dev/
+├── fechalead/          ← clone do projeto; abra o claude e o codex aqui
+└── .fechalead-tmp/     ← worktrees dos agentes, uma por branch
+    ├── feat-teste/
+    └── fix-login/
+```
 
-Nesta máquina, as regras valem para qualquer projeto:
+Cada instância (de qualquer agente) recebe do usuário o nome de uma branch, por exemplo `feat/teste`, e trabalha em `.fechalead-tmp/feat-teste`. Ela faz commit e push só da própria branch, sempre abre um PR ao terminar (com o que foi feito e `by: Claude Code` ou `by: Codex`) e sobe os ajustes que você pedir para esse mesmo PR. Não faz merge sem você pedir e nunca sobe direto para a `main`. Não mexe no checkout principal nem em worktrees ou branches de outras instâncias, mesmo que sejam do mesmo agente, e não usa `--force`. Depois do desenvolvimento, você limpa a pasta `.<projeto>-tmp`.
 
-- `~/.claude/CLAUDE.md` importa `/home/user/bamberg-cli/AGENTS.md`.
-- `~/.codex/AGENTS.md` instrui o Codex a ler e seguir esse arquivo.
+## Como as regras chegam aos agentes
+
+As regras valem só dentro de `development/`:
+
+- O Claude Code lê os `CLAUDE.md` das pastas acima de onde é aberto, então carrega o `CLAUDE.md` deste repositório.
+- O Codex só lê `AGENTS.md` dentro do repositório do projeto. Por isso, `~/.codex/AGENTS.md` o instrui a seguir `/home/user/bamberg-cli/AGENTS.md` quando estiver dentro de `development/`.
 - A skill está ligada em `~/.claude/skills/bamberg-task` e `~/.agents/skills/bamberg-task`.
 
-O Claude Code e o Codex também carregam o `AGENTS.md`/`CLAUDE.md` do próprio projeto, e os agentes seguem os dois. Se este checkout mudar de lugar, atualize esses três caminhos.
+Os dois agentes também seguem o `AGENTS.md`/`CLAUDE.md` do próprio projeto. Nenhum arquivo do projeto é alterado por este fluxo. Se este checkout mudar de lugar, atualize os caminhos acima.
 
-Ao abrir cada agente, diga a branch e a tarefa, por exemplo: "Na branch `feat/teste`, adicione um log em `scripts/setup.mjs`, faça commit, push e abra o PR."
+Ao abrir cada instância, diga uma branch diferente e a tarefa, por exemplo: "Na branch `feat/teste`, adicione um log em `scripts/setup.mjs`."
